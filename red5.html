@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>StudioVibe OS v4.3</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root { --accent: #ffffff; --bg: #000000; --panel: rgba(255, 255, 255, 0.04); }
+        * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; outline: none; }
+        body { 
+            background: var(--bg); color: white; font-family: 'Inter', -apple-system, sans-serif; 
+            margin: 0; height: 100vh; display: flex; align-items: center; justify-content: center;
+            overflow: hidden; touch-action: none;
+        }
+
+        #bg-glow {
+            position: fixed; top: 50%; left: 50%; width: 140vw; height: 140vw;
+            background: radial-gradient(circle, var(--accent) 0%, transparent 65%);
+            transform: translate(-50%, -50%) scale(1); opacity: 0.08; z-index: -1;
+            transition: background 0.8s ease; pointer-events: none;
+        }
+
+        .os-container {
+            width: 90vw; max-width: 380px; height: 85vh;
+            background: var(--panel); backdrop-filter: blur(50px); -webkit-backdrop-filter: blur(50px);
+            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 45px;
+            display: flex; flex-direction: column; padding: 25px; position: relative;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.9); z-index: 10;
+        }
+
+        #viz-canvas {
+            position: absolute; top: 48%; left: 0; width: 100%; height: 140px;
+            z-index: -1; opacity: 0.5; pointer-events: none;
+        }
+
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+        .badge { font-size: 9px; font-weight: 900; letter-spacing: 3px; color: var(--accent); opacity: 0.6; }
+
+        .art-zone { position: relative; width: 200px; height: 200px; margin: 0 auto 30px; }
+        .art-box {
+            width: 100%; height: 100%; border-radius: 40px; background: #080808;
+            display: flex; align-items: center; justify-content: center; font-size: 80px;
+            border: 1px solid rgba(255,255,255,0.05); transition: 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .playing .art-box { transform: scale(1.05); border-color: var(--accent); box-shadow: 0 0 40px rgba(255,255,255,0.1); }
+
+        .meta { text-align: center; margin-bottom: 25px; }
+        .meta h1 { margin: 0; font-size: 20px; font-weight: 700; }
+        .meta p { margin: 5px 0 0; opacity: 0.4; font-size: 10px; text-transform: uppercase; letter-spacing: 2px; }
+
+        .scrubber-cont { margin-bottom: 25px; cursor: pointer; }
+        .rail { background: rgba(255,255,255,0.1); height: 5px; border-radius: 10px; position: relative; }
+        .fill { background: var(--accent); width: 0%; height: 100%; border-radius: 10px; box-shadow: 0 0 15px var(--accent); }
+        .time { display: flex; justify-content: space-between; font-size: 10px; opacity: 0.4; margin-top: 8px; font-family: monospace; }
+
+        .controls { display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; gap: 10px; }
+        .btn { background: none; border: none; color: white; cursor: pointer; transition: 0.2s; padding: 10px; opacity: 0.7; }
+        .btn:active { transform: scale(0.9); opacity: 1; }
+        .play-btn { 
+            width: 65px; height: 65px; border-radius: 50%; background: var(--accent); color: black;
+            font-size: 24px; display: flex; align-items: center; justify-content: center; opacity: 1;
+        }
+
+        #vault {
+            position: absolute; inset: 0; background: #000; z-index: 100;
+            border-radius: 45px; display: none; flex-direction: column; padding: 30px;
+        }
+        .row { padding: 15px 0; border-bottom: 1px solid #111; display: flex; justify-content: space-between; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div id="bg-glow"></div>
+
+<div class="os-container" id="app">
+    <canvas id="viz-canvas"></canvas>
+    <div class="header">
+        <div class="badge">STUDIOVIBE // NF - FEAR</div>
+        <button class="btn" onclick="tg.HapticFeedback.impactOccurred('light'); openVault()">📂</button>
+    </div>
+
+    <div class="art-zone">
+        <div class="art-box" id="art">🌑</div>
+    </div>
+
+    <div class="meta">
+        <h1 id="title">FEAR</h1>
+        <p id="artist">NF</p>
+    </div>
+
+    <div class="scrubber-cont" onclick="seek(event)">
+        <div class="rail"><div class="fill" id="fill"></div></div>
+        <div class="time">
+            <span id="cur">0:00</span>
+            <span id="dur">0:00</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" onclick="prev()">⏮</button>
+        <button class="btn" onclick="jump(-10)">⏪</button>
+        <button class="btn play-btn" onclick="togglePlay()" id="pIco">▶</button>
+        <button class="btn" onclick="jump(10)">⏩</button>
+        <button class="btn" onclick="next()">⏭</button>
+    </div>
+
+    <div id="vault">
+        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 25px;">
+            <h2 style="font-size: 14px; letter-spacing: 2px;">LIBRARY</h2>
+            <button class="btn" onclick="openVault()">✕</button>
+        </div>
+        <div id="list" style="overflow-y:auto; flex:1;"></div>
+    </div>
+</div>
+
+<audio id="player" crossOrigin="anonymous"></audio>
+
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand(); tg.isVerticalSwipesEnabled = false;
+
+    const audio = document.getElementById('player');
+    const fill = document.getElementById('fill');
+    const glow = document.getElementById('bg-glow');
+    const canvas = document.getElementById('viz-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let isPlaying = false, idx = 0;
+    let aCtx, analyser, data, source;
+
+    const tracks = [
+        { title: "FEAR", src: "FEAR.mp3", icon: "🌑", color: "#ffffff" },
+        { title: "HOME", src: "HOME.mp3", icon: "🏠", color: "#f2f2f2" },
+        { title: "WHO I WAS", src: "WHO_I_WAS.mp3", icon: "👤", color: "#ff4d4d" },
+        { title: "GIVE ME A REASON", src: "GIVE_ME_A_REASON.mp3", icon: "💭", color: "#cccccc" },
+        { title: "SORRY", src: "SORRY.mp3", icon: "✉️", color: "#808080" },
+        { title: "WASHED UP", src: "WASHED_UP.mp3", icon: "🌊", color: "#4d4d4d" }
+    ];
+
+    function init() {
+        if (aCtx) return;
+        aCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = aCtx.createAnalyser();
+        source = aCtx.createMediaElementSource(audio);
+        source.connect(analyser); analyser.connect(aCtx.destination);
+        analyser.fftSize = 64; data = new Uint8Array(analyser.frequencyBinCount);
+        render();
+    }
+
+    function render() {
+        requestAnimationFrame(render);
+        analyser.getByteFrequencyData(data);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        let x = 0;
+        const bWidth = (canvas.width / data.length) * 2.5;
+        glow.style.transform = `translate(-50%, -50%) scale(${1 + (data[2]/255) * 0.25})`;
+
+        for (let i = 0; i < data.length; i++) {
+            const h = (data[i] / 255) * canvas.height;
+            ctx.fillStyle = tracks[idx].color + (isPlaying ? '44' : '11');
+            ctx.fillRect(x, canvas.height - h, bWidth - 5, h);
+            x += bWidth;
+        }
+    }
+
+    function load(i) {
+        const t = tracks[i];
+        document.getElementById('title').innerText = t.title;
+        document.getElementById('art').innerText = t.icon;
+        document.documentElement.style.setProperty('--accent', t.color);
+        audio.src = t.src;
+    }
+
+    function togglePlay() {
+        if (!aCtx) init();
+        tg.HapticFeedback.impactOccurred('medium');
+        if (isPlaying) {
+            audio.pause();
+            document.getElementById('pIco').innerText = "▶";
+            document.getElementById('app').classList.remove('playing');
+        } else {
+            audio.play();
+            document.getElementById('pIco').innerText = "⏸";
+            document.getElementById('app').classList.add('playing');
+        }
+        isPlaying = !isPlaying;
+    }
+
+    function next() { idx = (idx + 1) % tracks.length; load(idx); if(isPlaying) audio.play(); tg.HapticFeedback.impactOccurred('light'); }
+    function prev() { idx = (idx - 1 + tracks.length) % tracks.length; load(idx); if(isPlaying) audio.play(); tg.HapticFeedback.impactOccurred('light'); }
+    function jump(s) { audio.currentTime += s; tg.HapticFeedback.selectionChanged(); }
+    function seek(e) { audio.currentTime = (e.offsetX / e.currentTarget.clientWidth) * audio.duration; }
+
+    function openVault() {
+        const v = document.getElementById('vault');
+        v.style.display = v.style.display === 'flex' ? 'none' : 'flex';
+        document.getElementById('list').innerHTML = tracks.map((t, i) => `
+            <div class="row" onclick="idx=${i}; load(${i}); openVault(); if(!isPlaying) togglePlay(); else audio.play();">
+                <span><b>${t.title}</b></span><span>${t.icon}</span>
+            </div>
+        `).join('');
+    }
+
+    audio.addEventListener('timeupdate', () => {
+        const p = (audio.currentTime / audio.duration) * 100;
+        fill.style.width = p + "%";
+        document.getElementById('cur').innerText = fmt(audio.currentTime);
+        document.getElementById('dur').innerText = fmt(audio.duration);
+    });
+
+    audio.addEventListener('ended', () => { next(); });
+
+    function fmt(s) {
+        if (isNaN(s)) return "0:00";
+        const m = Math.floor(s/60), sec = Math.floor(s%60);
+        return `${m}:${sec < 10 ? '0' : ''}${sec}`;
+    }
+
+    canvas.width = 400; canvas.height = 140;
+    load(idx);
+</script>
+</body>
+</html>
